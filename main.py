@@ -188,6 +188,7 @@ with sync_playwright() as p:
 
             ).add_to(m)
         return m
+    
     for row in cursor.execute("SELECT id, name, lat, lon, price, bdrms, baths FROM listing"):
         print(row[2], row[3])
         popup_text = [f"Name: {row[1]}", f"Price: ${row[4]}/mo", f"{row[5]} Bed(s)", f"{row[6]} Bath(s)"]
@@ -198,10 +199,6 @@ with sync_playwright() as p:
         else:
             price_marker(row, pop_output)
                     
-
-
-            
-
     m.save("rentals_map.html")  
 
 ### Close out the browser cleanly ###
