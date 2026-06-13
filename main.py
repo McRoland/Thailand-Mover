@@ -1,8 +1,14 @@
 from playwright.sync_api import sync_playwright
 import sqlite3
 from datetime import date
+from geopy.geocoders import Nominatim
+from geopy.extra.rate_limiter import RateLimiter
+import folium
 
 
+usr_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+geolocator = Nominatim(user_agent="thailand=mover-scraper")
+geocode = RateLimiter(geolocator.geocode, min_delay_seconds=1)
 today = date.today()
 url = 'https://www.fazwaz.com/property-for-rent/thailand/bangkok'
 
@@ -14,7 +20,7 @@ with sync_playwright() as p:
     browser = p.chromium.launch(headless=False)
     
     context = browser.new_context(
-        user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        user_agent=usr_agent,
         viewport={"width": 1280, "height": 720},
     )
     page = context.new_page()
@@ -36,8 +42,7 @@ with sync_playwright() as p:
     print(f"Found {len(all_items)} listings")
 
 
-    ### Iterate through all 30 rental listings on page and extract result info ###
-
+### Iterate through all 30 rental listings on page and extract result info ###
     listings = []
     for idx, item in enumerate(all_items):
         try:
@@ -59,12 +64,24 @@ with sync_playwright() as p:
             location = item.locator("div.location-unit").inner_text()
         except:
             location = "n/a"
+        try:
+            address =  str(location)
+            geolocation = geocode(address, language="en")
+            lat = geolocation.latitude
+            lon = geolocation.longitude
+        except:
+            lat = 'n/a'
+            lon = 'n/a'
+
+
 
         build_dict = {
             'id': idx + 1,
             'name': name,
             'price': round(price, 2),
             'location': location,
+            'lat': lat,
+            'lon': lon,
             'date_scraped': str(today)
         }
         listing_dict = {}
@@ -83,12 +100,11 @@ with sync_playwright() as p:
                 size_sqm = float(size_sqm)
             listing_dict = build_dict | {'bdrms': bdrms, 'baths': baths, 'size': size_sqm }
         except:
-            print("It's tough 'round here... missing extra info.")
+            # print("It's tough 'round here... missing extra info.")
             listing_dict = build_dict | {'bdrms': 'n/a', 'baths': 'n/a', 'size': 'n/a' }
         listings.append(listing_dict)
-    print(listings)
 
-    ### SQL Interface ###
+### SQL Interface ###
     connection = sqlite3.connect("rentals.db")
     cursor = connection.cursor()
 
@@ -104,6 +120,8 @@ with sync_playwright() as p:
             bdrms REAL,
             baths REAL, 
             size REAL,
+            lat REAL,
+            lon REAL,
             date_scraped)
 """)
     # Get extracted data ready for SQL INSERT
@@ -116,27 +134,76 @@ with sync_playwright() as p:
             listing['bdrms'],
             listing['baths'],
             listing['size'],
+            listing['lat'],
+            listing['lon'],
             str(listing['date_scraped']))
         )
     # INSERT
-    cursor.executemany("INSERT OR IGNORE INTO listing (name, price, location, bdrms, baths, size, date_scraped) VALUES (?,?,?,?,?,?,?)", data)
+    cursor.executemany("INSERT OR IGNORE INTO listing (name, price, location, bdrms, baths, size, lat, lon, date_scraped) VALUES (?,?,?,?,?,?,?,?,?)", data)
     connection.commit()
 
-    # Quick lil check
-    for row in cursor.execute("SELECT id, name, price FROM listing ORDER BY price ASC"):
-        print(row)
-    cursor.execute("SELECT COUNT(*) FROM listing")
-    row_count = cursor.fetchone()[0]
-    print(row_count)
 
-    for row in cursor.execute("SELECT id, name, price FROM listing WHERE bdrms = 1"):
-        print(row)
-    for row in cursor.execute("SELECT id, name, price, price / size AS ppsm FROM listing"):
-        print(row)
-    
+### Quick lil check ###
+    # for row in cursor.execute("SELECT id, name, price FROM listing ORDER BY price ASC"):
+    #     print(row)
+    # cursor.execute("SELECT COUNT(*) FROM listing")
+    # row_count = cursor.fetchone()[0]
+    # print(row_count)
 
-        
+    # for row in cursor.execute("SELECT id, name, price FROM listing WHERE bdrms = 1"):
+    #     print(row)
+
+### Folium Mapping ###
+    m = folium.Map(location=[13.7563, 100.5018], zoom_start=12)
     
-    ### Close out the browser cleanly ###
+    def price_marker(row, pop_output):
+        if row[4] < 600:
+            folium.CircleMarker(
+                location=[row[2], row[3]],
+                popup=pop_output,
+                color="green",
+                fill=True,
+                fill_color="green",
+                fill_opacity=0.6
+
+            ).add_to(m)
+        elif row[4] >= 600 and row[4] <= 900:
+            folium.CircleMarker(
+                location=[row[2], row[3]],
+                popup=pop_output,
+                color="yellow",
+                fill=True,
+                fill_color="gold",
+                fill_opacity=0.6
+
+            ).add_to(m)
+        elif row[4] > 900:
+            folium.CircleMarker(
+                location=[row[2], row[3]],
+                popup=pop_output,
+                color="orange",
+                fill=True,
+                fill_color="orange",
+                fill_opacity=0.6
+
+            ).add_to(m)
+        return m
+    for row in cursor.execute("SELECT id, name, lat, lon, price, bdrms, baths FROM listing"):
+        print(row[2], row[3])
+        popup_text = [f"Name: {row[1]}", f"Price: ${row[4]}/mo", f"{row[5]} Bed(s)", f"{row[6]} Bath(s)"]
+        pop_output = "<br>".join(popup_text)
+
+        if row[2] and row[3] == 'n/a':
+            continue
+        else:
+            price_marker(row, pop_output)
+                    
+
+
+            
+
+    m.save("rentals_map.html")  
+
+### Close out the browser cleanly ###
     browser.close()
     print("Browser closed safely.")
