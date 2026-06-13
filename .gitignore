@@ -11,3 +11,6 @@ __pycache__/
 
 # Secrets
 .env
+
+#Editor
+.vscode/
