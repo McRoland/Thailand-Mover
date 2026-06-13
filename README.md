@@ -10,7 +10,7 @@ Gives convenient access to rental options in Bangkok in a price range of the use
 
 - Python
 - Playwright
-- SQL
+- SQLite
 - Folium
 - Geopy
 
