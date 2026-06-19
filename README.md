@@ -1,8 +1,11 @@
 # Thailand Mover
 
+[🌐 **Live Demo**](https://mcroland.github.io/Thailand-Mover/)
+
 A Playwright scraper that finds 30 rental listings from Fazwaz.com, extracts unit information, then maps it using Folium.
 
 ![Bangkok Rental Map](thailand_mvr_map.png)
+
 
 Gives convenient access to rental options in Bangkok in a price range of the user's choice. Creates an intuitive visual to help decide which rental options are worth taking a deeper look.
 

@@ -51,8 +51,7 @@ with sync_playwright() as p:
             name = "n/a"
         try:
             price_text = item.locator("div.price-tag").inner_text()
-            price_text = price_text.split("\n")[0]
-            
+            price_text = price_text.split("\n")[0]  
             
             for char in [",", ".", "$", "฿", "/mo"]:
                 price_text = price_text.replace(char, "")
@@ -189,8 +188,8 @@ with sync_playwright() as p:
             ).add_to(m)
         return m
     
-    for row in cursor.execute("SELECT id, name, lat, lon, price, bdrms, baths FROM listing"):
-        print(row[2], row[3])
+    for row in cursor.execute("SELECT id, name, lat, lon, price, bdrms, baths FROM listing ORDER BY price ASC"):
+        print(row[1], row[4])
         popup_text = [f"Name: {row[1]}", f"Price: ${row[4]}/mo", f"{row[5]} Bed(s)", f"{row[6]} Bath(s)"]
         pop_output = "<br>".join(popup_text)
 
@@ -199,7 +198,7 @@ with sync_playwright() as p:
         else:
             price_marker(row, pop_output)
                     
-    m.save("rentals_map.html")  
+    m.save("index.html")  
 
 ### Close out the browser cleanly ###
     browser.close()
